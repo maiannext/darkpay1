@@ -519,102 +519,69 @@
         const VALOR_FIXO = 9.97;
 
         async function gerarPix() {
-            const loading = document.getElementById('loading');
-            const result = document.getElementById('result');
-            const error = document.getElementById('error');
-            const submitBtn = document.getElementById('submitBtn');
+    const loading = document.getElementById('loading');
+    const result = document.getElementById('result');
+    const error = document.getElementById('error');
+    const submitBtn = document.getElementById('submitBtn');
 
-            // Esconder resultados anteriores
-            result.classList.remove('active');
-            error.classList.remove('active');
-            
-            // Mostrar loading
-            loading.classList.add('active');
-            submitBtn.disabled = true;
+    result.classList.remove('active');
+    error.classList.remove('active');
+    loading.classList.add('active');
+    submitBtn.disabled = true;
 
-            try {
-                // Gerar hash único para a transação
-                const offerHash = 'pix' + Date.now() + Math.random().toString(36).substring(7);
-                
-                // Endpoint correto da API IronPay
-                const response = await fetch(`https://api.ironpayapp.com.br/api/public/v1/transactions?api_token=${API_TOKEN}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        amount: 997, // Valor em centavos (R$ 9,97)
-                        offer_hash: offerHash,
-                        payment_method: "pix",
-                        customer: {
-                            name: "Cliente",
-                            email: "cliente@email.com",
-                            phone_number: "11999999999",
-                            document: "00000000000"
-                        },
-                        cart: [
-                            {
-                                product_hash: offerHash,
-                                title: "Pagamento",
-                                price: 997,
-                                quantity: 1,
-                                operation_type: 1,
-                                tangible: false
-                            }
-                        ]
-                    })
-                });
-
-                const data = await response.json();
-                console.log('Resposta completa da API:', data);
-
-                loading.classList.remove('active');
-                submitBtn.disabled = false;
-
-                if (!response.ok) {
-                    console.error('Erro da API:', data);
-                    throw new Error(data.message || data.error || JSON.stringify(data));
+    try {
+        const response = await fetch("https://api.ironpayapp.com.br/api/public/v1/pix/create", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            },
+            body: JSON.stringify({
+                api_token: API_TOKEN,
+                offer_hash: "SEU_OFFER_HASH_REAL",
+                products: [
+                    {
+                        product_hash: "SEU_PRODUCT_HASH_REAL",
+                        quantity: 1
+                    }
+                ],
+                customer: {
+                    name: "Cliente",
+                    email: "cliente@email.com",
+                    phone_number: "11999999999",
+                    document: "12345678909"
                 }
+            })
+        });
 
-                // Procurar código PIX na resposta (testando vários campos possíveis)
-                const pixCodeText = data.qr_code || 
-                                  data.pix_code || 
-                                  data.brcode || 
-                                  data.qrcode_text || 
-                                  data.qrcode ||
-                                  data.pix?.qr_code ||
-                                  data.pix?.code ||
-                                  data.payment?.qr_code ||
-                                  data.payment?.pix_code ||
-                                  data.data?.qr_code ||
-                                  data.data?.pix_code ||
-                                  data.data?.brcode ||
-                                  null;
+        const data = await response.json();
+        loading.classList.remove('active');
+        submitBtn.disabled = false;
 
-                if (!pixCodeText) {
-                    console.error('Estrutura da resposta:', data);
-                    throw new Error('QR Code PIX não encontrado na resposta. Verifique o console (F12) para mais detalhes.');
-                }
-
-                document.getElementById('pixCode').textContent = pixCodeText;
-
-                // Gerar QR Code
-                const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(pixCodeText)}`;
-                document.getElementById('qrCode').innerHTML = `<img src="${qrCodeUrl}" alt="QR Code PIX">`;
-
-                result.classList.add('active');
-
-            } catch (err) {
-                loading.classList.remove('active');
-                submitBtn.disabled = false;
-                
-                error.textContent = `Erro: ${err.message}`;
-                error.classList.add('active');
-                
-                console.error('Erro detalhado:', err);
-            }
+        if (!response.ok) {
+            throw new Error(data.message || JSON.stringify(data));
         }
+
+        const pixCode = data.pix?.brcode || data.pix?.code || data.brcode;
+
+        if (!pixCode) {
+            throw new Error("PIX não retornado pela API");
+        }
+
+        document.getElementById('pixCode').textContent = pixCode;
+
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(pixCode)}`;
+        document.getElementById('qrCode').innerHTML = `<img src="${qrUrl}">`;
+
+        result.classList.add('active');
+
+    } catch (err) {
+        loading.classList.remove('active');
+        submitBtn.disabled = false;
+        error.textContent = "Erro: " + err.message;
+        error.classList.add('active');
+    }
+}
 
         function copiarPix() {
             const pixCode = document.getElementById('pixCode').textContent;
