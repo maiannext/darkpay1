@@ -533,6 +533,9 @@
             submitBtn.disabled = true;
 
             try {
+                // Gerar hash único para a transação
+                const offerHash = 'pix' + Date.now() + Math.random().toString(36).substring(7);
+                
                 // Endpoint correto da API IronPay
                 const response = await fetch(`https://api.ironpayapp.com.br/api/public/v1/transactions?api_token=${API_TOKEN}`, {
                     method: 'POST',
@@ -541,22 +544,40 @@
                         'Accept': 'application/json'
                     },
                     body: JSON.stringify({
-                        amount: VALOR_FIXO * 100, // IronPay trabalha em centavos
-                        payment_method: "pix"
+                        amount: 997, // Valor em centavos (R$ 9,97)
+                        offer_hash: offerHash,
+                        payment_method: "pix",
+                        customer: {
+                            name: "Cliente",
+                            email: "cliente@email.com",
+                            phone_number: "11999999999",
+                            document: "00000000000"
+                        },
+                        cart: [
+                            {
+                                product_hash: offerHash,
+                                title: "Pagamento",
+                                price: 997,
+                                quantity: 1,
+                                operation_type: 1,
+                                tangible: false
+                            }
+                        ]
                     })
                 });
 
                 const data = await response.json();
-                console.log('Resposta da API:', data);
+                console.log('Resposta completa da API:', data);
 
                 loading.classList.remove('active');
                 submitBtn.disabled = false;
 
                 if (!response.ok) {
-                    throw new Error(data.message || data.error || 'Erro ao gerar PIX');
+                    console.error('Erro da API:', data);
+                    throw new Error(data.message || data.error || JSON.stringify(data));
                 }
 
-                // Procurar código PIX na resposta
+                // Procurar código PIX na resposta (testando vários campos possíveis)
                 const pixCodeText = data.qr_code || 
                                   data.pix_code || 
                                   data.brcode || 
@@ -565,13 +586,15 @@
                                   data.pix?.qr_code ||
                                   data.pix?.code ||
                                   data.payment?.qr_code ||
+                                  data.payment?.pix_code ||
                                   data.data?.qr_code ||
                                   data.data?.pix_code ||
-                                  'N/A';
+                                  data.data?.brcode ||
+                                  null;
 
-                if (pixCodeText === 'N/A') {
-                    console.error('Resposta completa:', data);
-                    throw new Error('QR Code PIX não encontrado na resposta da API');
+                if (!pixCodeText) {
+                    console.error('Estrutura da resposta:', data);
+                    throw new Error('QR Code PIX não encontrado na resposta. Verifique o console (F12) para mais detalhes.');
                 }
 
                 document.getElementById('pixCode').textContent = pixCodeText;
