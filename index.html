@@ -533,37 +533,52 @@
             submitBtn.disabled = true;
 
             try {
-                // Endpoint da API IronPay para criar cobrança PIX
-                const response = await fetch('https://api.ironpayapp.com.br/v1/pix/charge', {
+                // Endpoint correto da API IronPay
+                const response = await fetch(`https://api.ironpayapp.com.br/api/public/v1/transactions?api_token=${API_TOKEN}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${API_TOKEN}`
+                        'Accept': 'application/json'
                     },
                     body: JSON.stringify({
-                        amount: VALOR_FIXO,
-                        description: 'Pagamento - R$ 9,97'
+                        amount: VALOR_FIXO * 100, // IronPay trabalha em centavos
+                        payment_method: "pix"
                     })
                 });
 
                 const data = await response.json();
+                console.log('Resposta da API:', data);
 
                 loading.classList.remove('active');
                 submitBtn.disabled = false;
 
                 if (!response.ok) {
-                    throw new Error(data.message || 'Erro ao gerar PIX');
+                    throw new Error(data.message || data.error || 'Erro ao gerar PIX');
                 }
 
-                // Mostrar resultado
-                const pixCodeText = data.qr_code || data.pix_code || data.brcode || data.qrcode_text || 'N/A';
+                // Procurar código PIX na resposta
+                const pixCodeText = data.qr_code || 
+                                  data.pix_code || 
+                                  data.brcode || 
+                                  data.qrcode_text || 
+                                  data.qrcode ||
+                                  data.pix?.qr_code ||
+                                  data.pix?.code ||
+                                  data.payment?.qr_code ||
+                                  data.data?.qr_code ||
+                                  data.data?.pix_code ||
+                                  'N/A';
+
+                if (pixCodeText === 'N/A') {
+                    console.error('Resposta completa:', data);
+                    throw new Error('QR Code PIX não encontrado na resposta da API');
+                }
+
                 document.getElementById('pixCode').textContent = pixCodeText;
 
-                // Gerar QR Code (usando API externa)
-                if (pixCodeText !== 'N/A') {
-                    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(pixCodeText)}`;
-                    document.getElementById('qrCode').innerHTML = `<img src="${qrCodeUrl}" alt="QR Code PIX">`;
-                }
+                // Gerar QR Code
+                const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(pixCodeText)}`;
+                document.getElementById('qrCode').innerHTML = `<img src="${qrCodeUrl}" alt="QR Code PIX">`;
 
                 result.classList.add('active');
 
@@ -571,7 +586,7 @@
                 loading.classList.remove('active');
                 submitBtn.disabled = false;
                 
-                error.textContent = `Erro: ${err.message}. Por favor, tente novamente.`;
+                error.textContent = `Erro: ${err.message}`;
                 error.classList.add('active');
                 
                 console.error('Erro detalhado:', err);
